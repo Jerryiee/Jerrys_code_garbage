@@ -156,7 +156,8 @@ while True:
         # Display the frame
     cv2.imshow('Frame', frame)
     cv2.imshow("Threshold", mask)
-    cv2.setMouseCallback("Frame", on_mouseBreak the loop if the 'q' key is pressed
+    cv2.setMouseCallback("Frame", on_mouse)
+    #Break the loop if the 'q' key is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 

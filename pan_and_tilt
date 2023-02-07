@@ -4,16 +4,16 @@ from piservo import Servo
 import time
 
 # Initialize servo control for pan and tilt
-pan = Servo(13)
+pan = Servo(19)
 tilt = Servo(12)
 
 # Define the initial position for the servos
 pan.write(90)
-tilt.write(40)
+tilt.write(60)
 
 # Define the step size for the servos
-pan_step = 0.2
-tilt_step = 0.2
+pan_step = 2
+tilt_step = 2
 
 # Define the minimum and maximum values for the servos
 pan_min = 40
@@ -76,41 +76,36 @@ while True:
         pan_position = pan.read()
         tilt_position = tilt.read()
         
-        # Check if the face centroid is far enough from the frame centroid
-        if np.abs(distance[0]) >= 5:
-            # Check if the face centroid is to the left of the frame centroid
-            if distance[0] < 0:
-                pan_position -= pan_step
             
             # Check if the face centroid is to the right of the frame centroid
-            if abs(distance[0]) < 5:
-                pan_position = pan.read()
-            else:
-                if distance[0] < 0:
-                    pan_position -= pan_step
-                if distance[0] > 0:
-                    pan_position += pan_step
+        if abs(distance[0]) < 10:
+            pan_position = pan.read()
+        else:
+            if distance[0] < 0:
+                pan_position -= pan_step
+            if distance[0] > 0:
+                pan_position += pan_step
         
-            # Check if the face centroid is above or below the frame centroid
-            if abs(distance[1]) < 5:
-                tilt_position = tilt.read()
-            else:
-                if distance[1] < 0:
-                    tilt_position += tilt_step
-                if distance[1] > 0:
-                    tilt_position -= tilt_step
+        # Check if the face centroid is above or below the frame centroid
+        if abs(distance[1]) < 10:
+            tilt_position = tilt.read()
+        else:
+            if distance[1] < 0:
+                tilt_position -= tilt_step
+            if distance[1] > 0:
+                tilt_position += tilt_step
 
             # Limit the servo positions to their minimum and maximum values
-            pan_position = max(pan_min, min(pan_max, pan_position))
-            tilt_position = max(tilt_min, min(tilt_max, tilt_position))
+        pan_position = max(pan_min, min(pan_max, pan_position))
+        tilt_position = max(tilt_min, min(tilt_max, tilt_position))
 
-            # Apply a smoothing filter to the servo positions
-            pan_smooth = 0.9 * pan_smooth + 0.1 * pan_position
-            tilt_smooth = 0.9 * tilt_smooth + 0.1 * tilt_position
+        # Apply a smoothing filter to the servo positions
+        pan_smooth = 0.9 * pan_smooth + 0.1 * pan_position
+        tilt_smooth = 0.9 * tilt_smooth + 0.1 * tilt_position
 
-            # Move the servos to the filtered positions
-            pan.write(pan_smooth)
-            tilt.write(tilt_smooth)
+        # Move the servos to the filtered positions
+        pan.write(pan_smooth)
+        tilt.write(tilt_smooth)
         # Display the frame
     cv2.imshow('Frame', frame)
     

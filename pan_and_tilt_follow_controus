@@ -1,0 +1,165 @@
+import cv2
+import numpy as np
+from piservo import Servo
+import time
+
+
+click = None
+
+# Initialize servo control for pan and tilt
+pan = Servo(19)
+tilt = Servo(12)
+
+# Define the initial position for the servos
+pan.write(90)
+tilt.write(60)
+
+# Define the step size for the servos
+pan_step = 2
+tilt_step = 2
+
+# Define the minimum and maximum values for the servos
+pan_min = 40
+pan_max = 140
+tilt_min = 0
+tilt_max = 80
+
+
+pan_smooth = pan.read()
+tilt_smooth = tilt.read()
+
+# Define the video capture
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+
+# Create the window for the threshold sliders
+cv2.namedWindow("Threshold")
+# Create the sliders for the minimum and maximum HSV values
+cv2.createTrackbar("Hue Min", "Threshold", 0, 180, lambda x:x)
+cv2.createTrackbar("Hue Max", "Threshold", 180, 180, lambda x:x)
+cv2.createTrackbar("Sat Min", "Threshold", 0, 255, lambda x:x)
+cv2.createTrackbar("Sat Max", "Threshold", 255, 255, lambda x:x)
+cv2.createTrackbar("Val Min", "Threshold", 0, 255, lambda x:x)
+cv2.createTrackbar("Val Max", "Threshold", 255, 255, lambda x:x)
+
+# define the range for hsv values
+range_h = 10
+range_s = 50
+range_v = 50
+
+# Define a callback function to get the mouse click position
+def on_mouse(event, x, y, flags, params):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        # Get the HSV color of the clicked point
+        hsv_clicked = cv2.cvtColor(np.uint8([[frame[y, x]]]), cv2.COLOR_BGR2HSV)[0][0]
+
+        # Set the slider values to a range around the clicked point's HSV values
+        cv2.setTrackbarPos("Hue Min", "Threshold", max(0, hsv_clicked[0] - range_h))
+        cv2.setTrackbarPos("Hue Max", "Threshold", min(180, hsv_clicked[0] + range_h))
+        cv2.setTrackbarPos("Sat Min", "Threshold", max(0, hsv_clicked[1] - range_s))
+        cv2.setTrackbarPos("Sat Max", "Threshold", min(255, hsv_clicked[1] + range_s))
+        cv2.setTrackbarPos("Val Min", "Threshold", max(0, hsv_clicked[2] - range_v))
+        cv2.setTrackbarPos("Val Max", "Threshold", min(255, hsv_clicked[2] + range_v))
+        print("HSV Color:", hsv_clicked)
+
+
+
+# Set up the face detection
+#face_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_frontalface_default.xml')
+
+# Define the threshold for the smoothing filter
+threshold = 0.9
+
+# Initialize the previous distance
+prev_distance = np.array([0, 0])
+
+
+while True:
+    # Capture the frame from the video
+    _, frame = cap.read()
+
+    
+    # Calculate the centroid of the frame
+    frame_centroid = np.array([frame.shape[1]/2, frame.shape[0]/2])
+     # Get the current values of the sliders
+    h_min = cv2.getTrackbarPos("Hue Min", "Threshold")
+    h_max = cv2.getTrackbarPos("Hue Max", "Threshold")
+    s_min = cv2.getTrackbarPos("Sat Min", "Threshold")
+    s_max = cv2.getTrackbarPos("Sat Max", "Threshold")
+    v_min = cv2.getTrackbarPos("Val Min", "Threshold")
+    v_max = cv2.getTrackbarPos("Val Max", "Threshold")
+
+    # Convert the frame to HSV
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Threshold the image based on the current slider values
+    mask = cv2.inRange(hsv, (h_min, s_min, v_min), (h_max, s_max, v_max))
+
+    # Perform morphological operations to clean up the thresholded image
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    # Find contours in the thresholded image
+    _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if len(contours) > 0:
+    # Check if there is a face detected
+        # Calculate the distance between the frame and largest contour
+        c = max(contours, key=cv2.contourArea)
+        (x, y, w, h) = cv2.boundingRect(c)
+        click = np.array([x + w/2, y + h/2])
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        
+        distance = frame_centroid - click
+        print(distance)
+        
+        # Apply a smoothing filter to the distance
+        distance = threshold * prev_distance + (1-threshold) * distance
+        prev_distance = distance
+        
+        # Read the current positions of the servos
+        pan_position = pan.read()
+        tilt_position = tilt.read()
+        
+            
+            # Check if the face centroid is to the right of the frame centroid
+        if abs(distance[0]) < 10:
+            pan_position = pan.read()
+        else:
+            if distance[0] < 0:
+                pan_position -= pan_step
+            if distance[0] > 0:
+                pan_position += pan_step
+        
+        # Check if the face centroid is above or below the frame centroid
+        if abs(distance[1]) < 10:
+            tilt_position = tilt.read()
+        else:
+            if distance[1] < 0:
+                tilt_position -= tilt_step
+            if distance[1] > 0:
+                tilt_position += tilt_step
+
+            # Limit the servo positions to their minimum and maximum values
+        pan_position = max(pan_min, min(pan_max, pan_position))
+        tilt_position = max(tilt_min, min(tilt_max, tilt_position))
+
+        # Apply a smoothing filter to the servo positions
+        pan_smooth = 0.9 * pan_smooth + 0.1 * pan_position
+        tilt_smooth = 0.9 * tilt_smooth + 0.1 * tilt_position
+
+        # Move the servos to the filtered positions
+        pan.write(pan_smooth)
+        tilt.write(tilt_smooth)
+        # Display the frame
+    cv2.imshow('Frame', frame)
+    cv2.imshow("Threshold", mask)
+    cv2.setMouseCallback("Frame", on_mouseBreak the loop if the 'q' key is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the video capture and destroy the windows
+cap.release()
+cv2.destroyAllWindows

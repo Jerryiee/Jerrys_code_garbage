@@ -1,0 +1,128 @@
+from PIL import Image, ImageTk
+import tkinter as tk
+import cv2
+import math
+import numpy as np
+from piservo import Servo
+
+# Initialize servo control for pan and tilt
+pan = Servo(19)
+tilt = Servo(12)
+
+# Define the initial position for the servos
+pan.write(90)
+tilt.write(40)
+
+# Define the step size for the servos
+pan_step = 0.2
+tilt_step = 0.2
+
+# Define the minimum and maximum values for the servos
+pan_min = 0
+pan_max = 180
+tilt_min = 0
+tilt_max = 180
+
+class VirtualJoystick:
+    def __init__(self, master):
+        global pan, tilt
+        
+        self.master = master
+        master.title("Virtual Joystick")
+
+        self.joystick_frame = tk.Frame(master, bd=5)
+        self.joystick_frame.pack(side=tk.LEFT)
+        
+        self.joystick_canvas = tk.Canvas(self.joystick_frame, width=200, height=200, bg='white')
+        self.joystick_canvas.pack()
+        
+        self.joystick = self.joystick_canvas.create_oval(50, 50, 150, 150, outline='black', width=2)
+        self.stick = self.joystick_canvas.create_oval(75, 75, 125, 125, fill='grey', width=0)
+        
+        self.pan = 0.0
+        self.tilt = 0.0
+                
+        # Read the current positions of the servos
+
+        self.pan_position = pan.read()
+        self.tilt_position = tilt.read()
+        
+        self.update_servo_position()
+        
+        
+        self.joystick_canvas.bind("<B1-Motion>", self.update_joystick)
+        self.joystick_canvas.bind("<ButtonRelease-1>", self.reset_joystick)
+        
+        self.video_frame = tk.Frame(master, bd=5)
+        self.video_frame.pack(side=tk.RIGHT)
+        
+        self.video_label = tk.Label(self.video_frame)
+        self.video_label.pack()
+        
+        self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+        self.update_video()
+        
+    def update_joystick(self, event):
+        x = event.x - 100
+        y = event.y - 100
+        
+        distance = math.sqrt(x**2 + y**2)
+        if distance > 50:
+            x = x * 50 / distance
+            y = y * 50 / distance
+        
+        self.joystick_canvas.coords(self.stick, 100 + x - 25, 100 + y - 25, 100 + x + 25, 100 + y + 25)
+        
+        self.pan = x / 50 * 5.0
+        self.tilt = -y / 50 * 5.0
+        
+        #print(self.pan)
+        #print(self.tilt)              
+        
+    def reset_joystick(self, event):
+        self.joystick_canvas.coords(self.stick, 75, 75, 125, 125)
+        self.pan = 0.0
+        self.tilt = 0.0
+    
+    def update_servo_position(self):
+        # Move the servo motors here using the self.pan and self.tilt values
+        
+        #print("Updating servo position: pan={}, tilt={}".format(self.pan, self.tilt))
+        
+        self.pan_position -=  self.pan*pan_step
+        self.tilt_position += self.tilt*tilt_step
+
+        
+        self.pan_position = max(pan_min, min(pan_max, self.pan_position))
+        self.tilt_position = max(tilt_min, min(tilt_max, self.tilt_position))
+
+
+        # Move the servos to the filtered positions
+        pan.write(self.pan_position)
+        tilt.write(self.tilt_position)
+
+        self.master.after(50, self.update_servo_position)
+        
+        
+    def update_video(self):
+        _, frame = self.cap.read()
+        cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+        img = Image.fromarray(cv2image)
+        imgtk = ImageTk.PhotoImage(image=img)
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
+        self.video_label.after(30, self.update_video) 
+                                       
+root = tk.Tk()
+
+my_gui = VirtualJoystick(root)
+
+# Initialize the video capture
+#my_gui.cap = cv2.VideoCapture(0)
+
+# Start the update_video function
+#my_gui.update_video()
+
+root.mainloop()

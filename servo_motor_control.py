@@ -14,7 +14,6 @@ GPIO.setup(ENA,GPIO.OUT)
 GPIO.setup(IN1,GPIO.OUT)
 GPIO.setup(IN2,GPIO.OUT)
 
-# Initialize servo control for pan and tilt
 servo = Servo(13)
 servo_min = 45
 servo_max = 105

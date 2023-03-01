@@ -1,5 +1,6 @@
 # Include the library files
 import RPi.GPIO as GPIO
+from time import sleep
 import tkinter as tk
 from piservo import Servo
 
@@ -14,6 +15,7 @@ GPIO.setup(ENA,GPIO.OUT)
 GPIO.setup(IN1,GPIO.OUT)
 GPIO.setup(IN2,GPIO.OUT)
 
+# Initialize servo control for pan and tilt
 servo = Servo(13)
 servo_min = 45
 servo_max = 105
@@ -27,6 +29,7 @@ window.title("Motor and Servo Control")
 motor_slider = tk.Scale(window, from_=-100, to=100, orient=tk.HORIZONTAL, label="Motor Speed")
 motor_slider.pack()
 servo_slider = tk.Scale(window, from_=servo_min, to=servo_max, orient=tk.HORIZONTAL, label="Servo Position")
+servo_slider.set((servo_min + servo_max) // 2)
 servo_slider.pack()
 
 pwm = GPIO.PWM(ENA, 100)
